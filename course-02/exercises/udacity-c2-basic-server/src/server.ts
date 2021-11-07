@@ -1,5 +1,4 @@
 import express, { Router, Request, Response } from 'express';
-import bodyParser from 'body-parser';
 
 import { Car, cars as cars_list } from './cars';
 
@@ -13,7 +12,8 @@ import { Car, cars as cars_list } from './cars';
   
   //use middleware so post bodies 
   //are accessable as req.body.{{variable}}
-  app.use(bodyParser.json()); 
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }))
 
   // Root URI call
   app.get( "/", ( req: Request, res: Response ) => {
@@ -54,7 +54,7 @@ import { Car, cars as cars_list } from './cars';
   // to demonstrate req.body
   // > try it by posting {"name": "the_name" } as 
   // an application/json body to {{host}}/persons
-  app.post( "/persons", 
+  app.post( "/persons/", 
     async ( req: Request, res: Response ) => {
 
       const { name } = req.body;
@@ -68,15 +68,72 @@ import { Car, cars as cars_list } from './cars';
                 .send(`Welcome to the Cloud, ${name}!`);
   } );
 
-  // @TODO Add an endpoint to GET a list of cars
+  // @DONE Add an endpoint to GET a list of cars
   // it should be filterable by make with a query paramater
+  app.get( "/cars/",
+    async ( req: Request, res: Response ) => {
+      const { make } = req.query;
 
-  // @TODO Add an endpoint to get a specific car
+      let result = cars_list;
+      
+      if (make) {
+        result = await cars_list.filter((car) => car.make === make);
+      }
+
+      res.status(200).send(result);
+    }
+  )
+
+  // @DONE Add an endpoint to get a specific car
   // it should require id
   // it should fail gracefully if no matching car is found
+  app.get("/cars/:id",
+    async ( req: Request, res: Response ) => {
+      const { id } = req.params;
+
+      if ( !id ) {
+        return res.status(400)
+                  .send(`id is required`)
+      }
+
+      const result = await cars_list.find( (car) => car.id === +id);
+
+      if(!result) {
+        return res.status(404).send(`car is not found`);
+      }
+
+      res.status(200).send(result);
+    }
+  )
 
   /// @TODO Add an endpoint to post a new car to our list
   // it should require id, type, model, and cost
+  app.post( "/cars/", 
+    async ( req: Request, res: Response ) => {
+
+      const { make, type, model, cost, id } = req.body;
+
+      if (!id || !type || !model || !cost) {
+        return res.status(400)
+                  .send(`make, type, model, cost, id are required`);
+      }
+
+      const has_car_with_id = await cars_list.find( (car) => car.id === +id);
+
+      if(has_car_with_id) {
+        return res.status(409)
+                  .send(`create a new car with an already existing id is not permitted`)
+      }
+
+      const new_car: Car = {
+        make: make, type: type, model: model, cost: cost, id: id
+      }
+
+      cars_list.push(new_car);
+      return res.status(201)
+                .send(new_car);
+      }
+  )
 
   // Start the Server
   app.listen( port, () => {
